@@ -1,6 +1,10 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import axios from "axios";
 import "./App.css";
+import Modal from "./component/Modal";
+import FileUpload from "./component/FileUpload";
+import ChatContainer from "./component/ChatContainer";
+import { v4 as uuidv4 } from "uuid";
 
 function App() {
   const [userQuestion, setUserQuestion] = useState("");
@@ -9,15 +13,48 @@ function App() {
   const [loadingPdf, setLoadingPdf] = useState(false);
   const [file, setFile] = useState(null);
   const [saveFile, setSaveFile] = useState(false);
+  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [isSmallScreen, setIsSmallScreen] = useState(false);
+  const [userId, setUserId] = useState();
+
+  useEffect(() => {
+    const num = uuidv4();
+    setUserId(num);
+  }, []);
+
+  useEffect(() => {
+    const checkScreenSize = () => {
+      setIsSmallScreen(window.innerWidth <= 767);
+    };
+
+    checkScreenSize();
+    window.addEventListener("resize", checkScreenSize);
+
+    return () => {
+      window.removeEventListener("resize", checkScreenSize);
+    };
+  }, []);
 
   const handleFileChange = (e) => {
     setFile(e.target.files[0]);
+    const num = uuidv4();
+    setUserId(num);
   };
 
-  const handleUpload = async () => {
+  const handleOpenModal = () => {
+    setIsModalOpen(true);
+  };
+
+  const handleUpload = async (val) => {
     try {
       const formData = new FormData();
-      formData.append("pdf", file);
+      formData.append("user_id", userId);
+      if (val === 1) {
+        formData.append("default", 1);
+      } else {
+        formData.append("pdf", file);
+      }
+
       setLoadingPdf(true);
       await axios.post(
         "https://chatwithpdf-flask-app.onrender.com/add-pdf",
@@ -46,6 +83,7 @@ function App() {
         "https://chatwithpdf-flask-app.onrender.com/chat",
         {
           question: userQuestion,
+          user_id: userId,
         }
       );
 
@@ -62,48 +100,37 @@ function App() {
 
   return (
     <div className="container-main">
-      <div className="container-1">
-        <h1 className="title">ADD HERE YOUR PDF'S FILES :</h1>
-        <input type="file" accept=".pdf" onChange={handleFileChange} />
-        <button disabled={!file} onClick={handleUpload}>
-          Upload
-        </button>
-        {loadingPdf ? (
-          <div>
-            <h1 className="title">LOADING.....</h1>
-          </div>
-        ) : saveFile ? (
-          <h1 className="title">
-            YOUR FILE UPDATED! <br /> ASK WHATEVER YOU WANT!
-          </h1>
-        ) : (
-          <div>
-            <h1 className="add-pdf">YOU HAVE NOT UPLOADED A DOCUMENT YET</h1>
-          </div>
-        )}
-      </div>
-      <div className="contianer-2">
-        <h1 className="title">CHAT ABOUT YOUR INFO :</h1>
-        <div className="chat-container">
-          {chatHistory.map((message, index) => (
-            <div key={index} className="chat-message">
-              <div className={"user-bubble"}>{message.question}</div>
-              <div className={"bot-bubble"}>{message.answer}</div>
-            </div>
-          ))}
-        </div>
-        <div className="question">
-          <input
-            type="text"
-            placeholder="Ask a question about your documents"
-            value={userQuestion}
-            onChange={(e) => setUserQuestion(e.target.value)}
-          />
-          <button onClick={handleUserInput} disabled={loading}>
-            {loading ? "Loading..." : "Submit"}
-          </button>
-        </div>
-      </div>
+      {!isSmallScreen ? (
+        <FileUpload
+          file={file}
+          loadingPdf={loadingPdf}
+          saveFile={saveFile}
+          handleFileChange={handleFileChange}
+          handleUpload={handleUpload}
+        />
+      ) : (
+        <>
+          <Modal isOpen={isModalOpen} onClose={() => setIsModalOpen(false)}>
+            <FileUpload
+              file={file}
+              loadingPdf={loadingPdf}
+              saveFile={saveFile}
+              handleFileChange={handleFileChange}
+              handleUpload={handleUpload}
+            />
+          </Modal>
+          <button onClick={handleOpenModal}>ADD HERE PDF</button>
+        </>
+      )}
+
+      <ChatContainer
+        chatHistory={chatHistory}
+        userQuestion={userQuestion}
+        loading={loading}
+        loadingPdf={loadingPdf}
+        handleUserInput={handleUserInput}
+        setUserQuestion={(value) => setUserQuestion(value)}
+      />
     </div>
   );
 }
